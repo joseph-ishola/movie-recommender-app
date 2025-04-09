@@ -67,7 +67,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function getRecommendations(movieId) {
         // Fetch recommendations for the selected movie
         fetch(`/api/recommendations/${movieId}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`API Error (${response.status}): ${text}`);
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 // Hide loading indicator
                 loadingIndicator.style.display = 'none';
@@ -81,8 +88,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 displayRecommendations(data, movieId);
             })
             .catch(error => {
-                showError('An error occurred while getting recommendations. Please try again.');
-                console.error('Error:', error);
+                console.error('Recommendation error:', error);
+                showError(`Error: ${error.message}`);
             });
     }
     
@@ -210,7 +217,22 @@ document.addEventListener('DOMContentLoaded', function() {
         // Format the recommendations table rows
         const tableRows = recommendations.map(rec => {
             // Format genres as a comma-separated list
-            const genres = rec.genres ? JSON.parse(rec.genres).map(g => g.name).join(', ') : '';
+            // Check if genres is already an object or a string
+            let genreNames = '';
+            if (rec.genres) {
+                if (typeof rec.genres === 'string') {
+                    // If it's a string, parse it
+                    try {
+                        genreNames = JSON.parse(rec.genres).map(g => g.name).join(', ');
+                    } catch (e) {
+                        console.error("Error parsing genres:", e);
+                        genreNames = rec.genres; // Use as-is if parsing fails
+                    }
+                } else if (Array.isArray(rec.genres)) {
+                    // If it's already an array, map directly
+                    genreNames = rec.genres.map(g => g.name).join(', ');
+                }
+            }
             
             // Format similarity as percentage
             const similarity = (rec.similarity_score * 100).toFixed(1) + '%';
@@ -221,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return `
             <tr>
                 <td><strong>${rec.title}</strong></td>
-                <td>${genres}</td>
+                <td>${genreNames}</td>
                 <td>
                     <div class="d-flex align-items-center">
                         <div class="text-warning me-2"><i class="bi bi-star-fill"></i></div>
@@ -274,35 +296,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
 
-            <div class="row">
-                <div class="col-md-6 mb-4">
-                    <div class="card shadow-sm fade-in">
-                        <div class="card-header bg-primary text-white">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-bar-chart-fill me-2"></i>
-                                <h3 class="card-title mb-0">Similarity Chart</h3>
-                            </div>
-                        </div>
-                        <div class="card-body text-center">
-                            <img src="${chartPath}" class="img-fluid rounded" alt="Similarity chart">
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 mb-4">
-                    <div class="card shadow-sm fade-in">
-                        <div class="card-header bg-primary text-white">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-cloud-fill me-2"></i>
-                                <h3 class="card-title mb-0">Themes & Topics</h3>
-                            </div>
-                        </div>
-                        <div class="card-body text-center">
-                            <img src="${wordcloudPath}" class="img-fluid rounded" alt="Word cloud">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="card shadow-sm fade-in">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex align-items-center">
@@ -345,13 +338,92 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm fade-in">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-bar-chart-fill me-2"></i>
+                                <h3 class="card-title mb-0">Similarity Chart</h3>
+                            </div>
+                        </div>
+                        <div class="card-body text-center">
+                            <div id="similarity-chart-placeholder" class="viz-placeholder">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading chart...</span>
+                                </div>
+                                <p class="mt-2">Generating chart...</p>
+                            </div>
+                            <img id="similarity-chart-chart" src="" class="img-fluid rounded" 
+                                 alt="Similarity chart" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm fade-in">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-cloud-fill me-2"></i>
+                                <h3 class="card-title mb-0">Themes & Topics</h3>
+                            </div>
+                        </div>
+                        <div class="card-body text-center">
+                            <div id="wordcloud-placeholder" class="viz-placeholder">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading wordcloud...</span>
+                                </div>
+                                <p class="mt-2">Generating wordcloud...</p>
+                            </div>
+                            <img id="wordcloud-image" src="" class="img-fluid rounded" 
+                                alt="Word cloud" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         `;
         
         // Update the recommendations container with the generated HTML
         recommendationsContainer.innerHTML = recommendationsHTML;
         recommendationsContainer.style.display = 'block';
+
+        // Load visualizations asynchronously after showing the recommendations
+        setTimeout(() => {
+            loadVisualization('similarity_chart', movieId, chartPath);
+            loadVisualization('wordcloud', movieId, wordcloudPath);
+        }, 100);
     }
     
+    function loadVisualization(type, movieId, url) {
+        // Get the placeholder and image elements
+        const placeholder = document.getElementById(`${type.replace('_', '-')}-placeholder`);
+        const imgElement = document.getElementById(`${type.replace('_', '-')}-${type === 'wordcloud' ? 'image' : 'chart'}`);
+        
+        if (!placeholder || !imgElement) {
+            console.error(`Elements for ${type} not found`);
+            return;
+        }
+        
+        // Create a new image element to preload the visualization
+        const img = new Image();
+        
+        // When the image loads, swap it in and hide the placeholder
+        img.onload = function() {
+            imgElement.src = url;
+            imgElement.style.display = 'block';
+            placeholder.style.display = 'none';
+        };
+        
+        // If the image fails to load, show an error message
+        img.onerror = function() {
+            placeholder.innerHTML = `<div class="alert alert-warning">Failed to load ${type.replace('_', ' ')}.</div>`;
+        };
+        
+        // Start loading the image
+        img.src = url;
+    }
+
     function showError(message) {
         // Hide loading indicator
         loadingIndicator.style.display = 'none';

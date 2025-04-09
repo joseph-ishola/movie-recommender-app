@@ -252,3 +252,26 @@
   .fade-in {
     animation: fadeIn 0.4s ease-out forwards;
   }
+  
+  /* Visualization placeholder styling */
+  .viz-placeholder {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+  }
+
+  .viz-placeholder .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: var(--primary-color);
+  }
+
+  .viz-placeholder p {
+    margin-top: 1rem;
+    color: #6c757d;
+  }
