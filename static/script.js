@@ -192,14 +192,52 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add event listeners to similar title buttons
         document.querySelectorAll('.similar-title').forEach(button => {
             button.addEventListener('click', function() {
-                const movieId = this.getAttribute('data-movie-id');
+                // IMPORTANT: Don't get recommendations directly!
+                // const movieId = this.getAttribute('data-movie-id');
+                
+                // Instead, get the title and do a new search
+                const exactTitle = this.getAttribute('data-title');
                 
                 // Show loading again
                 recommendationsContainer.style.display = 'none';
                 loadingIndicator.style.display = 'block';
                 
-                // Get recommendations for the selected movie
-                getRecommendations(movieId);
+                // Search for the exact title
+                const formData = new FormData();
+                formData.append('movie_title', exactTitle);
+                
+                fetch('/api/search', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingIndicator.style.display = 'none';
+                    
+                    // Log the response to see what's happening
+                    console.log("Search response for exact title:", data);
+                    
+                    if (data.status === 'error') {
+                        showError(data.message);
+                        return;
+                    }
+                    
+                    // Check if we have multiple matches or a single match
+                    if (!data.exact_match && data.similar_movies && data.similar_movies.length > 0) {
+                        // Multiple matches found, show selection UI
+                        showMultipleMatchesUI(data.similar_movies, exactTitle);
+                    } else if (data.exact_match) {
+                        // Single exact match found, get recommendations
+                        getRecommendations(data.movie.movie_id);
+                    } else {
+                        // No matches found (shouldn't happen)
+                        showNoMatchUI(`No movies found matching "${exactTitle}"`, []);
+                    }
+                })
+                .catch(error => {
+                    showError('An error occurred while searching for the movie. Please try again.');
+                    console.error('Error:', error);
+                });
             });
         });
         
@@ -213,6 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function displayRecommendations(data, movieId) {
         const recommendations = data.recommendations;
+        const metrics = data.metrics;
         
         // Format the recommendations table rows
         const tableRows = recommendations.map(rec => {
@@ -267,6 +306,42 @@ document.addEventListener('DOMContentLoaded', function() {
         const chartPath = `/api/visualization/similarity_chart/${movieId}?t=${timestamp}`;
         const wordcloudPath = `/api/visualization/wordcloud/${movieId}?t=${timestamp}`;
         
+        // Metrics section with dynamic values
+        const metricsHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card text-center mb-3 mb-md-0">
+                        <div class="card-body">
+                            <i class="bi bi-intersect text-primary mb-3" style="font-size: 2rem;"></i>
+                            <h5 class="card-title">Genre Overlap</h5>
+                            <h2 class="display-4">${metrics.average_genre_overlap.toFixed(1)}%</h2>
+                            <p class="text-muted">Shared genres between movies</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center mb-3 mb-md-0">
+                        <div class="card-body">
+                            <i class="bi bi-star-half text-primary mb-3" style="font-size: 2rem;"></i>
+                            <h5 class="card-title">Rating Similarity</h5>
+                            <h2 class="display-4">${metrics.average_rating_difference.toFixed(2)}</h2>
+                            <p class="text-muted">Avg. rating difference (lower is better)</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <i class="bi bi-shuffle text-primary mb-3" style="font-size: 2rem;"></i>
+                            <h5 class="card-title">Content Relevance</h5>
+                            <h2 class="display-4">${metrics.average_content_relevance.toFixed(1)}%</h2>
+                            <p class="text-muted">Thematic similarity</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
         // Create the full HTML structure for recommendations
         const recommendationsHTML = `
             <div class="card shadow-sm mb-4 fade-in">
@@ -304,38 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="card text-center mb-3 mb-md-0">
-                                <div class="card-body">
-                                    <i class="bi bi-intersect text-primary mb-3" style="font-size: 2rem;"></i>
-                                    <h5 class="card-title">Genre Overlap</h5>
-                                    <h2 class="display-4">85.2%</h2>
-                                    <p class="text-muted">Shared genres between movies</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card text-center mb-3 mb-md-0">
-                                <div class="card-body">
-                                    <i class="bi bi-star-half text-primary mb-3" style="font-size: 2rem;"></i>
-                                    <h5 class="card-title">Rating Similarity</h5>
-                                    <h2 class="display-4">0.74</h2>
-                                    <p class="text-muted">Avg. rating difference (lower is better)</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card text-center">
-                                <div class="card-body">
-                                    <i class="bi bi-shuffle text-primary mb-3" style="font-size: 2rem;"></i>
-                                    <h5 class="card-title">Content Relevance</h5>
-                                    <h2 class="display-4">92.3%</h2>
-                                    <p class="text-muted">Thematic similarity</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    ${metricsHTML}
                 </div>
             </div>
 

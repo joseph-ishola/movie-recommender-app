@@ -10,6 +10,7 @@ from wordcloud import WordCloud
 import io
 import psycopg2
 import os
+import json
 import base64
 from dotenv import load_dotenv
 
@@ -52,6 +53,8 @@ def search_movies():
     else:
         query = request.args.get('q', '').strip()
     
+    app.logger.info(f"Searching for movie: '{query}'")
+
     if not query:
         return jsonify({
             'status': 'error',
@@ -63,9 +66,12 @@ def search_movies():
         db.execute("SELECT * FROM movies WHERE LOWER(title) = LOWER(%s)", (query,))
         exact_matches = db.fetchall()
         
+        app.logger.info(f"Found {len(exact_matches)} exact matches for '{query}'")
+
         if exact_matches:
             # If there's only one exact match, return it as an exact match
             if len(exact_matches) == 1:
+                app.logger.info(f"Returning single exact match: {exact_matches[0]['title']}")
                 return jsonify({
                     'status': 'success',
                     'exact_match': True,
@@ -73,6 +79,7 @@ def search_movies():
                 })
             else:
                 # If there are multiple exact matches, return them as multiple matches
+                app.logger.info(f"Returning {len(exact_matches)} exact matches as similar_movies")
                 return jsonify({
                     'status': 'success',
                     'exact_match': False,
@@ -80,9 +87,11 @@ def search_movies():
                 })
         
         # If no exact match, try partial match
-        db.execute("SELECT * FROM movies WHERE LOWER(title) LIKE LOWER(%s) LIMIT 5", (f'%{query}%',))
+        db.execute("SELECT * FROM movies WHERE LOWER(title) LIKE LOWER(%s) LIMIT 10", (f'%{query}%',))
         similar_movies = db.fetchall()
         
+        app.logger.info(f"Found {len(similar_movies)} partial matches for '{query}'")
+
         if similar_movies:
             return jsonify({
                 'status': 'success',
@@ -103,7 +112,20 @@ def get_recommendations(movie_id):
     limit = int(request.args.get('limit', 5))
     
     try:
-        # Check cache first if enabled
+        # First, get the source movie regardless of cache status
+        with Database() as db:
+            # Check if the movie exists
+            db.execute("SELECT * FROM movies WHERE movie_id = %s", (movie_id,))
+            source_movie = db.fetchone()
+            
+            if not source_movie:
+                app.logger.error(f"Movie with ID {movie_id} not found")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Movie with ID {movie_id} not found'
+                }), 404
+        
+        # Now check cache for recommendations
         recommendations = None
         if app.config['CACHE_ENABLED']:
             with RedisCache() as cache:
@@ -118,17 +140,6 @@ def get_recommendations(movie_id):
             with Database() as db:
                 # Log the query we're about to execute
                 app.logger.info(f"Fetching recommendations for movie_id: {movie_id}")
-
-                # Check if the movie exists
-                db.execute("SELECT * FROM movies WHERE movie_id = %s", (movie_id,))
-                movie = db.fetchone()
-                
-                if not movie:
-                    app.logger.error(f"Movie with ID {movie_id} not found")
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Movie with ID {movie_id} not found'
-                    }), 404
                 
                 # Get recommendations
                 recommendations = db.get_similar_movies(movie_id, limit)
@@ -148,10 +159,15 @@ def get_recommendations(movie_id):
                 'message': f'No recommendations found for movie ID {movie_id}'
             }), 404
         
+        # Calculate evaluation metrics - now source_movie is always defined
+        metrics = calculate_evaluation_metrics(source_movie, recommendations)
+
         return jsonify({
             'status': 'success',
             'movie_id': movie_id,
-            'recommendations': recommendations
+            'source_movie': source_movie,
+            'recommendations': recommendations,
+            'metrics': metrics
         })
     
     except Exception as e:
@@ -373,7 +389,78 @@ def generate_wordcloud(movie, recommendations):
     buf.seek(0)
     return buf.getvalue()
 
-
+def calculate_evaluation_metrics(source_movie, recommendations):
+    """Calculate evaluation metrics for recommendations"""
+    # 1. Calculate genre overlap
+    try:
+        source_genres = json.loads(source_movie['genres']) if isinstance(source_movie['genres'], str) else source_movie['genres']
+        source_genre_names = [g['name'] for g in source_genres]
+        
+        genre_overlaps = []
+        for rec in recommendations:
+            rec_genres = json.loads(rec['genres']) if isinstance(rec['genres'], str) else rec['genres']
+            rec_genre_names = [g['name'] for g in rec_genres]
+            
+            # Calculate Jaccard similarity for genres
+            if source_genre_names and rec_genre_names:
+                overlap = len(set(source_genre_names) & set(rec_genre_names)) / len(set(source_genre_names) | set(rec_genre_names))
+            else:
+                overlap = 0
+                
+            genre_overlaps.append(overlap)
+            
+        avg_genre_overlap = sum(genre_overlaps) / len(genre_overlaps) if genre_overlaps else 0
+        
+        # 2. Calculate rating difference
+        source_rating = float(source_movie['vote_average']) if source_movie['vote_average'] is not None else 0
+        rating_diffs = []
+        
+        for rec in recommendations:
+            rec_rating = float(rec['vote_average']) if rec['vote_average'] is not None else 0
+            rating_diffs.append(abs(source_rating - rec_rating))
+            
+        avg_rating_diff = sum(rating_diffs) / len(rating_diffs) if rating_diffs else 0
+        
+        # 3. Calculate content relevance using TF-IDF + Cosine Similarity based on genres
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+        
+        # Create genre feature strings
+        source_genre_feature = ' '.join(source_genre_names)
+        rec_genre_features = [' '.join([g['name'] for g in (json.loads(rec['genres']) if isinstance(rec['genres'], str) else rec['genres'])]) for rec in recommendations]
+        
+        # Combine all genre features for TF-IDF
+        all_genre_features = [source_genre_feature] + rec_genre_features
+        
+        # Check if we have valid genre data
+        if any(all_genre_features) and len(all_genre_features) > 1:
+            # Fit TF-IDF vectorizer on all genre features
+            tfidf = TfidfVectorizer(stop_words='english')
+            tfidf_matrix = tfidf.fit_transform(all_genre_features)
+            
+            # Get similarity between source movie and each recommendation
+            source_vector = tfidf_matrix[0:1]
+            rec_vectors = tfidf_matrix[1:]
+            
+            content_similarities = cosine_similarity(source_vector, rec_vectors)[0]
+            avg_content_relevance = sum(content_similarities) / len(content_similarities) if len(content_similarities) > 0 else 0
+        else:
+            avg_content_relevance = 0
+        
+        return {
+            'average_genre_overlap': avg_genre_overlap * 100,  # Convert to percentage
+            'average_rating_difference': avg_rating_diff,
+            'average_content_relevance': avg_content_relevance * 100  # Convert to percentage
+        }
+    except Exception as e:
+        app.logger.error(f"Error calculating metrics: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'average_genre_overlap': 0,
+            'average_rating_difference': 0,
+            'average_content_relevance': 0
+        }
 
 @app.route('/api/clear-visualization-cache', methods=['POST'])
 def clear_visualization_cache():
