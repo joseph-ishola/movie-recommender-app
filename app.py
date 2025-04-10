@@ -100,21 +100,8 @@ def get_visualization(viz_type, movie_id):
         }), 500
 
 if __name__ == '__main__':
-    import argparse
-
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Run the movie recommender web app')
-    parser.add_argument('--port', type=int, default=int(os.getenv('WEBAPP_PORT', 80)),
-                        help='Port to run the web app on')
-    args = parser.parse_args()
-    
-    # Use the port from command line arguments
-    port = args.port
-    
-    print(f"Starting web app on port {port}")
-    
     app.run(
         host=os.getenv('FLASK_HOST', '0.0.0.0'),
-        port=port,
+        port=int(os.getenv('WEBAPP_PORT', 8080)),
         debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     )

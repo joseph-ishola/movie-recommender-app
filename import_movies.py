@@ -206,7 +206,7 @@ def compute_movie_similarities(movies_df, batch_size=100):
     # Use dimensionality reduction to make computation more efficient
     print("Performing dimensionality reduction...")
     #svd = TruncatedSVD(n_components=min(2000, combined_features.shape[1] - 1), random_state=42)
-    svd = TruncatedSVD(n_components=2000, random_state=42)
+    svd = TruncatedSVD(n_components=5000, random_state=42)
     reduced_features = svd.fit_transform(combined_features)
     print(f"Explained variance ratio: {svd.explained_variance_ratio_.sum():.2f}")
     
