@@ -1,0 +1,22 @@
+FROM python:3.13-alpine
+
+WORKDIR /app
+
+# Install system dependencies (Alpine uses apk instead of apt-get)
+RUN apk add --no-cache postgresql-dev gcc python3-dev musl-dev
+
+# Install dependencies
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+# Copy application code
+COPY api.py .
+COPY db_utils.py .
+COPY cache_utils.py .
+COPY .env .
+
+# Expose the port the app runs on
+EXPOSE 5000
+
+# Command to run the application
+CMD ["python", "api.py"]

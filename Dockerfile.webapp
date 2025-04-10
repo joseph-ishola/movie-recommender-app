@@ -1,0 +1,22 @@
+FROM python:3.13-alpine
+
+WORKDIR /app
+
+# Install system dependencies if needed
+RUN apk add --no-cache libffi-dev
+
+# Install dependencies
+COPY requirements-webapp.txt .
+RUN pip install --no-cache-dir -r requirements-webapp.txt
+
+# Copy application code
+COPY app.py .
+COPY static/ static/
+COPY templates/ templates/
+COPY .env .
+
+# Expose the port the app runs on
+EXPOSE 8080
+
+# Command to run the application
+CMD ["python", "app.py"]

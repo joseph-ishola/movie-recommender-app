@@ -1,0 +1,22 @@
+FROM python:3.13-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache postgresql-dev gcc python3-dev musl-dev
+
+# Install Python dependencies
+COPY requirements-dataimport.txt .
+RUN pip install --no-cache-dir -r requirements-dataimport.txt
+
+# Copy application code
+COPY import_movies.py .
+COPY db_schema.sql .
+COPY db_utils.py .
+COPY .env .
+
+# Copy data (will be mounted volume in docker-compose)
+VOLUME /app/data
+
+# Command to run the data import
+CMD ["python", "import_movies.py"]
