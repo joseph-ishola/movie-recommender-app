@@ -20,6 +20,12 @@
     min-height: 100vh;
     padding-bottom: 120px;
     color: var(--dark-color);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .container:not(.footer .container) {
+      flex: 1;
   }
   
   /* Header Styling */
@@ -274,4 +280,225 @@
   .viz-placeholder p {
     margin-top: 1rem;
     color: #6c757d;
+  }
+
+  /* Footer Styling for Movie Recommender App */
+  .movie-recommender-footer {
+    position: relative;
+    width: 100%;
+    background-color: var(--gray-100);
+    color: var(--dark-color);
+    padding: 3rem 0 1.5rem;
+    margin-top: 3rem;
+    border-top: 1px solid var(--gray-300);
+    box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.05);
+  }
+
+  .footer-content {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .footer-section {
+    flex: 1 1 300px;
+    margin-bottom: 2rem;
+    padding: 0 1rem;
+  }
+
+  .footer-section h3 {
+    color: var(--primary-color);
+    margin-bottom: 1.25rem;
+    position: relative;
+    padding-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  .footer-section h3::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 40px;
+    height: 3px;
+    background-color: var(--primary-color);
+  }
+
+  /* Profile section */
+  .footer-section.profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .profile-image {
+    width: 140px;
+    height: 140px;
+    margin-bottom: 1rem;
+    border-radius: 50%;
+    overflow: hidden;
+    background-color: var(--gray-200);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 3px solid var(--primary-color);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .profile-image:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .profile-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .profile-placeholder i {
+    font-size: 5rem;
+    color: var(--gray-800);
+  }
+
+  .developer-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.5rem 0 1rem;
+    color: var(--dark-color);
+  }
+
+  /* Contact section */
+  .contact-info div {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    transition: transform 0.2s ease;
+  }
+
+  .contact-info div:hover {
+    transform: translateX(5px);
+  }
+
+  .contact-info div i {
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    color: var(--primary-color);
+    font-size: 1.1rem;
+  }
+
+  .contact-info a {
+    color: var(--dark-color);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .contact-info a:hover {
+    color: var(--primary-color);
+  }
+
+  /* Technology section */
+  .tech-stack {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    gap: 8px; /* More consistent spacing */
+  }
+
+  .tech-item {
+    display: inline-block;
+    padding: 0.35rem 0.7rem;
+    border-radius: 20px;
+    background-color: var(--gray-200);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--dark-color);
+    transition: all 0.2s ease;
+  }
+
+  .tech-item:hover {
+    background-color: var(--primary-color);
+    color: white;
+    transform: translateY(-2px);
+  }
+
+  /* Footer bottom */
+  .footer-bottom {
+    text-align: center;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--gray-300);
+    margin-top: 1rem;
+  }
+
+  .footer-bottom p {
+    font-size: 0.9rem;
+    color: var(--gray-800);
+    margin-bottom: 0;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 992px) {
+    .footer-section {
+        flex: 1 1 45%;
+    }
+    
+    .footer-section.tech {
+        flex: 1 1 100%;
+        order: 3; /* Move tech section to bottom on medium screens */
+    }
+  }
+
+  @media (max-width: 768px) {
+    .footer-section {
+        flex: 1 1 100%;
+        margin-bottom: 2rem;
+    }
+    
+    .movie-recommender-footer {
+        padding: 2rem 0 1rem;
+    }
+    
+    .profile-image {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .contact-info div {
+        justify-content: center;
+    }
+    
+    .footer-section.contact h3::after,
+    .footer-section.tech h3::after {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .footer-section.contact h3,
+    .footer-section.tech h3 {
+        text-align: center;
+    }
+    
+    .footer-section.contact {
+        text-align: center;
+    }
+    
+    .tech-stack {
+        justify-content: center;
+    }
+  }
+
+  @media (max-width: 576px) {
+    .tech-item {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
   }
