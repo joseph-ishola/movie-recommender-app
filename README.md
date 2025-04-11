@@ -46,7 +46,7 @@ The system follows a modern microservices architecture:
 
 ```
                    ┌─────────────┐
-                   │    Client    │
+                   │    Client   │
                    └──────┬──────┘
                           │
                           ▼
@@ -104,7 +104,7 @@ The system evaluates recommendations using three key metrics:
 
 ## 📷 Screenshots
 
-*[Include screenshots of your application here]*
+*[Screenshot ]*
 
 ## 🚀 Installation
 
