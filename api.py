@@ -320,13 +320,13 @@ def generate_similarity_chart(movie, recommendations):
             width = bar.get_width()
             label_position = width - 0.05  # Position label inside the bar
             plt.text(label_position, bar.get_y() + bar.get_height()/2, 
-                    f'{width:.1%}', va='center', ha='right', color='white', fontweight='bold')
+                    f'{width:.1%}', va='center', ha='right', color='white', fontweight='bold', fontsize=14)
         
-        plt.xlabel('Similarity Score', fontsize=14)
-        plt.xticks(fontsize=12)
-        plt.yticks(fontsize=12)
-        plt.ylabel('Movie Title', fontsize=14)
-        plt.title(f'Movies Similar to "{movie["title"]}"', fontsize=16, fontweight='bold')
+        plt.xlabel('Similarity Score', fontsize=18)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=16)
+        plt.ylabel('Movie Title', fontsize=18)
+        plt.title(f'Movies Similar to "{movie["title"]}"', fontsize=20, fontweight='bold')
         plt.xlim(0, 1.0)  # Set x-axis from 0 to 1
         plt.gca().invert_yaxis()  # Highest similarity at top
         plt.grid(axis='x', linestyle='--', alpha=0.7)
