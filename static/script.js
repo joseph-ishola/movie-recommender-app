@@ -1,5 +1,7 @@
 // static/script.js
 document.addEventListener('DOMContentLoaded', function() {
+    //console.log("Script loaded - version 1.6");
+    
     // Elements for search and recommendations
     const recommendForm = document.getElementById('recommendForm');
     const resultsDiv = document.getElementById('results');
@@ -8,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorMessage = document.getElementById('errorMessage');
     const backToSearch = document.getElementById('backToSearch');
     
-    // Recommendation form submit handler
+    // Add event listener for form submission
     if (recommendForm) {
         recommendForm.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -21,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Get the movie title
             const movieTitle = document.getElementById('movieTitle').value;
+            //console.log("Searching for:", movieTitle);
             
             // Create form data
             const formData = new FormData();
@@ -33,28 +36,144 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
+                //console.log("Search response:", data);
+                
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+                
                 if (data.status === 'error') {
                     showError(data.message);
                     return;
                 }
                 
-                // If exact match found, get recommendations
+                // If exact match found, get recommendations directly
                 if (data.exact_match) {
+                    console.log("Exact match found, getting recommendations");
                     getRecommendations(data.movie.movie_id);
-                } else if (data.similar_movies && data.similar_movies.length > 0) {
-                    // Show multiple matches UI
-                    showMultipleMatchesUI(data.similar_movies, movieTitle);
-                } else {
+                }
+                // If multiple exact matches found (same title as search term), go directly to multiple matches UI
+                else if (data.similar_movies && data.similar_movies.length > 0) {
+                    // Check if these are exact matches for the search term
+                    const exactMatches = data.similar_movies.filter(movie => 
+                        movie.title.toLowerCase() === movieTitle.toLowerCase());
+                    
+                    if (exactMatches.length > 1) {
+                        // Multiple exact matches (like "The Avengers"), use multiple matches UI directly
+                        //console.log("Multiple exact matches found:", exactMatches.length);
+                        showMultipleMatchesUI(exactMatches, movieTitle);
+                    } 
+                    else if (exactMatches.length === 1) {
+                        // Single exact match with the title, get recommendations
+                        console.log("Single exact match found in similar movies");
+                        getRecommendations(exactMatches[0].movie_id);
+                    }
+                    else {
+                        // Partial matches (like "game"), show search results
+                        //console.log("Partial matches found:", data.similar_movies.length);
+                        showSearchResultsUI(data.similar_movies, movieTitle);
+                    }
+                }
+                else {
                     // No matches found
                     showNoMatchUI(`No movies found matching "${movieTitle}"`, []);
                 }
             })
             .catch(error => {
+                console.error("Search error:", error);
                 showError('An error occurred while searching for the movie. Please try again.');
-                console.error('Error:', error);
             });
         });
     }
+    
+    // Event delegation for all button clicks
+    document.addEventListener('click', function(event) {
+        const targetElement = event.target.closest('button');
+        if (!targetElement) return;
+
+        // Get data attributes
+        const movieId = targetElement.getAttribute('data-movie-id');
+        const movieTitle = targetElement.getAttribute('data-title');
+        
+        // 1. CASE: Initial search results (when user searches for "game" and gets a list of similar titles)
+        if (targetElement.classList.contains('similar-title')) {
+            //console.log("Similar title clicked:", movieTitle);
+            event.preventDefault();
+            
+            // Show loading
+            recommendationsContainer.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+            
+            // Do a new search for this exact title
+            const formData = new FormData();
+            formData.append('movie_title', movieTitle);
+            
+            fetch('/api/search', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingIndicator.style.display = 'none';
+                //console.log("Search for exact title result:", data);
+                
+                if (data.status === 'error') {
+                    showError(data.message);
+                    return;
+                }
+                
+                // If exact match, get recommendations directly
+                if (data.exact_match) {
+                    console.log("Single exact match found");
+                    getRecommendations(data.movie.movie_id);
+                }
+                // If multiple similar movies with the exact title, show multiple matches UI
+                else if (data.similar_movies && data.similar_movies.length > 0) {
+                    // Filter to only exact title matches
+                    const exactMatches = data.similar_movies.filter(movie => 
+                        movie.title.toLowerCase() === movieTitle.toLowerCase());
+                    
+                    if (exactMatches.length > 0) {
+                        console.log("Multiple exact matches found for title");
+                        showMultipleMatchesUI(exactMatches, movieTitle);
+                    } else {
+                        // This should rarely happen - fall back to showing all similar movies
+                        console.log("No exact matches found, showing similar movies");
+                        showMultipleMatchesUI(data.similar_movies, movieTitle);
+                    }
+                }
+                else {
+                    showNoMatchUI(`No movies found matching "${movieTitle}"`, []);
+                }
+            })
+            .catch(error => {
+                loadingIndicator.style.display = 'none';
+                showError('An error occurred. Please try again.');
+                console.error(error);
+            });
+            return;
+        }
+        
+        // 2. CASE: Multiple matches selection (when user has selected a movie and there are multiple versions)
+        if (targetElement.classList.contains('movie-choice')) {
+            //console.log("Specific movie version selected:", movieTitle, "ID:", movieId);
+            event.preventDefault();
+            
+            // Show loading
+            recommendationsContainer.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+            
+            // Get recommendations directly
+            getRecommendations(movieId);
+            return;
+        }
+        
+        // 3. CASE: New search button
+        if (targetElement.id === 'newSearchBtn') {
+            document.getElementById('movieTitle').value = '';
+            document.getElementById('movieTitle').focus();
+            resultsDiv.style.display = 'none';
+        }
+    });
     
     // Back to search button
     if (backToSearch) {
@@ -64,19 +183,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Function to fetch and display recommendations
     function getRecommendations(movieId) {
-        // Fetch recommendations for the selected movie
+        //console.log("Getting recommendations for movie ID:", movieId);
+        
+        // Show loading indicator
+        recommendationsContainer.style.display = 'none';
+        loadingIndicator.style.display = 'block';
+        
+        // Fetch recommendations
         fetch(`/api/recommendations/${movieId}`)
             .then(response => {
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        throw new Error(`API Error (${response.status}): ${text}`);
-                    });
-                }
+                console.log("Recommendations response status:", response.status);
                 return response.json();
             })
             .then(data => {
-                // Hide loading indicator
+                //console.log("Recommendations data:", data);
                 loadingIndicator.style.display = 'none';
                 
                 if (data.status === 'error') {
@@ -88,192 +210,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 displayRecommendations(data, movieId);
             })
             .catch(error => {
-                console.error('Recommendation error:', error);
-                showError(`Error: ${error.message}`);
+                console.error("Error fetching recommendations:", error);
+                loadingIndicator.style.display = 'none';
+                showError('An error occurred while fetching recommendations. Please try again.');
             });
     }
     
-    function showMultipleMatchesUI(movies, searchedTitle) {
-        // Hide loading indicator
-        loadingIndicator.style.display = 'none';
-        
-        // Create HTML for movie selection
-        const matchesHTML = `
-            <div class="card shadow-sm mb-4 fade-in">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-list-stars me-2"></i>
-                        <h3 class="card-title mb-0">Multiple Matches Found</h3>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p>We found multiple movies matching "${searchedTitle}". Please select which one you meant:</p>
-                    <div class="list-group mb-3">
-                        ${movies.map(movie => `
-                            <button type="button" class="list-group-item list-group-item-action movie-choice d-flex justify-content-between align-items-center"
-                                    data-movie-id="${movie.movie_id}" data-title="${movie.title}">
-                                <span><i class="bi bi-film me-2"></i>${movie.title} (${new Date(movie.release_date).getFullYear()})</span>
-                                <i class="bi bi-chevron-right"></i>
-                            </button>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Display the matches UI
-        recommendationsContainer.innerHTML = matchesHTML;
-        recommendationsContainer.style.display = 'block';
-        
-        // Add event listeners to the movie choices
-        document.querySelectorAll('.movie-choice').forEach(button => {
-            button.addEventListener('click', function() {
-                const movieId = this.getAttribute('data-movie-id');
-                
-                // Show loading again
-                recommendationsContainer.style.display = 'none';
-                loadingIndicator.style.display = 'block';
-                
-                // Get recommendations for the selected movie
-                getRecommendations(movieId);
-            });
-        });
-    }
-    
-    function showNoMatchUI(message, similarTitles) {
-        // Hide loading indicator
-        loadingIndicator.style.display = 'none';
-        
-        let similarTitlesHTML = '';
-        
-        if (similarTitles && similarTitles.length > 0) {
-            similarTitlesHTML = `
-                <p class="mb-3">Did you mean one of these?</p>
-                <div class="list-group mb-4">
-                    ${similarTitles.map(movie => `
-                        <button type="button" class="list-group-item list-group-item-action similar-title d-flex justify-content-between align-items-center"
-                                data-movie-id="${movie.movie_id}" data-title="${movie.title}">
-                            <span><i class="bi bi-film me-2"></i>${movie.title} (${new Date(movie.release_date).getFullYear()})</span>
-                            <i class="bi bi-chevron-right"></i>
-                        </button>
-                    `).join('')}
-                </div>
-            `;
-        } else {
-            similarTitlesHTML = `<p class="mb-4">No similar titles were found in our database.</p>`;
-        }
-        
-        const noMatchHTML = `
-            <div class="card shadow-sm mb-4 fade-in">
-                <div class="card-header bg-warning text-dark">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <h3 class="card-title mb-0">Movie Not Found</h3>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="text-center my-4">
-                        <i class="bi bi-film-slash" style="font-size: 4rem; color: #ccc;"></i>
-                    </div>
-                    <p class="text-center">${message}</p>
-                    ${similarTitlesHTML}
-                    <div class="text-center">
-                        <button class="btn btn-primary" id="newSearchBtn">
-                            <i class="bi bi-search me-2"></i>Try Another Search
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        recommendationsContainer.innerHTML = noMatchHTML;
-        recommendationsContainer.style.display = 'block';
-        
-        // Add event listeners to similar title buttons
-        document.querySelectorAll('.similar-title').forEach(button => {
-            button.addEventListener('click', function() {
-                // IMPORTANT: Don't get recommendations directly!
-                // const movieId = this.getAttribute('data-movie-id');
-                
-                // Instead, get the title and do a new search
-                const exactTitle = this.getAttribute('data-title');
-                
-                // Show loading again
-                recommendationsContainer.style.display = 'none';
-                loadingIndicator.style.display = 'block';
-                
-                // Search for the exact title
-                const formData = new FormData();
-                formData.append('movie_title', exactTitle);
-                
-                fetch('/api/search', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    loadingIndicator.style.display = 'none';
-                    
-                    // Log the response to see what's happening
-                    console.log("Search response for exact title:", data);
-                    
-                    if (data.status === 'error') {
-                        showError(data.message);
-                        return;
-                    }
-                    
-                    // Check if we have multiple matches or a single match
-                    if (!data.exact_match && data.similar_movies && data.similar_movies.length > 0) {
-                        // Multiple matches found, show selection UI
-                        showMultipleMatchesUI(data.similar_movies, exactTitle);
-                    } else if (data.exact_match) {
-                        // Single exact match found, get recommendations
-                        getRecommendations(data.movie.movie_id);
-                    } else {
-                        // No matches found (shouldn't happen)
-                        showNoMatchUI(`No movies found matching "${exactTitle}"`, []);
-                    }
-                })
-                .catch(error => {
-                    showError('An error occurred while searching for the movie. Please try again.');
-                    console.error('Error:', error);
-                });
-            });
-        });
-        
-        // Add event listener to the new search button
-        document.getElementById('newSearchBtn').addEventListener('click', function() {
-            document.getElementById('movieTitle').value = '';
-            document.getElementById('movieTitle').focus();
-            resultsDiv.style.display = 'none';
-        });
-    }
-    
+    // Function to display recommendation results
     function displayRecommendations(data, movieId) {
         const recommendations = data.recommendations;
         const metrics = data.metrics;
+        const sourceMovie = data.source_movie;
+        
+        // Get source movie title and release year for the header
+        const movieTitle = sourceMovie.title;
+        const releaseYear = sourceMovie.release_date ? new Date(sourceMovie.release_date).getFullYear() : '';
+        const titleDisplay = releaseYear ? `${movieTitle} (${releaseYear})` : movieTitle;
         
         // Format the recommendations table rows
         const tableRows = recommendations.map(rec => {
-            // Format genres as a comma-separated list
-            // Check if genres is already an object or a string
+            // Format genres
             let genreNames = '';
             if (rec.genres) {
                 if (typeof rec.genres === 'string') {
-                    // If it's a string, parse it
                     try {
-                        genreNames = JSON.parse(rec.genres).map(g => g.name).join(', ');
+                        const genres = JSON.parse(rec.genres);
+                        genreNames = genres.map(g => g.name).join(', ');
                     } catch (e) {
-                        console.error("Error parsing genres:", e);
-                        genreNames = rec.genres; // Use as-is if parsing fails
+                        console.error('Error parsing genres:', e);
+                        genreNames = rec.genres;
                     }
                 } else if (Array.isArray(rec.genres)) {
-                    // If it's already an array, map directly
-                    genreNames = rec.genres.map(g => g.name).join(', ');
+                    genreNames = rec.genres.map(g => g.name || g).join(', ');
                 }
             }
             
-            // Format similarity as percentage
+            // Format similarity score as percentage
             const similarity = (rec.similarity_score * 100).toFixed(1) + '%';
             
             // Format release date
@@ -293,7 +265,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>
                     <div class="progress" style="height: 8px;">
                         <div class="progress-bar" role="progressbar" style="width: ${similarity};" 
-                             aria-valuenow="${rec.similarity_score * 100}" aria-valuemin="0" aria-valuemax="100"></div>
+                            aria-valuenow="${rec.similarity_score * 100}" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                     <small class="text-muted">${similarity}</small>
                 </td>
@@ -306,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const chartPath = `/api/visualization/similarity_chart/${movieId}?t=${timestamp}`;
         const wordcloudPath = `/api/visualization/wordcloud/${movieId}?t=${timestamp}`;
         
-        // Metrics section with dynamic values
+        // Create metrics HTML
         const metricsHTML = `
             <div class="row">
                 <div class="col-md-4">
@@ -348,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-list-stars me-2"></i>
-                        <h3 class="card-title mb-0">Recommended Movies</h3>
+                        <h3 class="card-title mb-0">Recommended Movies for "${titleDisplay}"</h3>
                     </div>
                 </div>
                 <div class="card-body">
@@ -399,8 +371,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                                 <p class="mt-2">Generating chart...</p>
                             </div>
-                            <img id="similarity-chart-chart" src="" class="img-fluid rounded" 
-                                 alt="Similarity chart" style="display: none;">
+                            <img id="similarity-chart-chart" class="img-fluid rounded" src="${chartPath}" style="display: none;" alt="Similarity chart">
                         </div>
                     </div>
                 </div>
@@ -419,61 +390,200 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                                 <p class="mt-2">Generating wordcloud...</p>
                             </div>
-                            <img id="wordcloud-image" src="" class="img-fluid rounded" 
-                                alt="Word cloud" style="display: none;">
+                            <img id="wordcloud-image" class="img-fluid rounded" src="${wordcloudPath}" style="display: none;" alt="Word cloud">
                         </div>
                     </div>
                 </div>
             </div>
-
         `;
         
-        // Update the recommendations container with the generated HTML
+        // Update the recommendations container
         recommendationsContainer.innerHTML = recommendationsHTML;
         recommendationsContainer.style.display = 'block';
-
-        // Load visualizations asynchronously after showing the recommendations
-        setTimeout(() => {
-            loadVisualization('similarity_chart', movieId, chartPath);
-            loadVisualization('wordcloud', movieId, wordcloudPath);
-        }, 100);
+        
+        // Load visualizations
+        loadVisualization('similarity-chart-chart', 'similarity-chart-placeholder', chartPath);
+        loadVisualization('wordcloud-image', 'wordcloud-placeholder', wordcloudPath);
     }
     
-    function loadVisualization(type, movieId, url) {
-        // Get the placeholder and image elements
-        const placeholder = document.getElementById(`${type.replace('_', '-')}-placeholder`);
-        const imgElement = document.getElementById(`${type.replace('_', '-')}-${type === 'wordcloud' ? 'image' : 'chart'}`);
+    // Function to display initial search results
+    function showSearchResultsUI(movies, searchTerm) {
+        console.log("Showing search results for:", searchTerm);
+        //console.log("Found movies:", movies);
         
-        if (!placeholder || !imgElement) {
-            console.error(`Elements for ${type} not found`);
+        // Create HTML for movie options - using similar-title class for initial search results
+        const moviesHtml = movies.map(movie => {
+            const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+            
+            return `
+                <button type="button" class="list-group-item list-group-item-action similar-title d-flex justify-content-between align-items-center"
+                        data-movie-id="${movie.movie_id}" 
+                        data-title="${movie.title}">
+                    <span><i class="bi bi-film me-2"></i>${movie.title}</span>
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            `;
+        }).join('');
+        
+        // Create the selection UI
+        const resultsHTML = `
+            <div class="card shadow-sm mb-4 fade-in">
+                <div class="card-header bg-info text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-search me-2"></i>
+                        <h3 class="card-title mb-0">Search Results</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p>We found these movies matching your search for "${searchTerm}":</p>
+                    <div class="list-group mb-3">
+                        ${moviesHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Update the recommendations container
+        recommendationsContainer.innerHTML = resultsHTML;
+        recommendationsContainer.style.display = 'block';
+    }
+    
+    // Function to display multiple matches UI
+    function showMultipleMatchesUI(movies, searchedTitle) {
+        console.log("Showing multiple matches UI for:", searchedTitle);
+        //console.log("Movies:", movies);
+        
+        // Create HTML for movie options
+        const moviesHtml = movies.map(movie => {
+            const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+            
+            // All buttons in the multiple matches UI should use the class "movie-choice"
+            return `
+                <button type="button" class="list-group-item list-group-item-action movie-choice d-flex justify-content-between align-items-center"
+                        data-movie-id="${movie.movie_id}" 
+                        data-title="${movie.title}">
+                    <span><i class="bi bi-film me-2"></i>${movie.title} (${releaseDate})</span>
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            `;
+        }).join('');
+        
+        // Create the selection UI
+        const matchesHTML = `
+            <div class="card shadow-sm mb-4 fade-in">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-list-stars me-2"></i>
+                        <h3 class="card-title mb-0">Multiple Matches Found</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p>We found multiple movies with the title "${searchedTitle}". Please select which one you meant:</p>
+                    <div class="list-group mb-3">
+                        ${moviesHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Update the recommendations container
+        recommendationsContainer.innerHTML = matchesHTML;
+        recommendationsContainer.style.display = 'block';
+    }
+    
+    // Function to show no matches UI
+    function showNoMatchUI(message, similarTitles) {
+        console.log("Showing no matches UI with message:", message);
+        console.log("Similar titles:", similarTitles);
+        
+        let similarTitlesHTML = '';
+        if (similarTitles && similarTitles.length > 0) {
+            const titlesHTML = similarTitles.map((movie, index) => {
+                const releaseDate = movie.release_date ? new Date(movie.release_date).getFullYear() : 'Unknown';
+                return `
+                    <button type="button" class="list-group-item list-group-item-action similar-title d-flex justify-content-between align-items-center"
+                            id="similar-title-${index}" 
+                            data-movie-id="${movie.movie_id}"
+                            data-title="${movie.title}">
+                        <span><i class="bi bi-film me-2"></i>${movie.title} (${releaseDate})</span>
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                `;
+            }).join('');
+            
+            similarTitlesHTML = `
+                <p class="mb-3">Did you mean one of these?</p>
+                <div class="list-group mb-4">
+                    ${titlesHTML}
+                </div>
+            `;
+        } else {
+            similarTitlesHTML = `<p class="mb-4">No similar titles were found in our database.</p>`;
+        }
+        
+        const noMatchHTML = `
+            <div class="card shadow-sm mb-4 fade-in">
+                <div class="card-header bg-warning text-dark">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <h3 class="card-title mb-0">Movie Not Found</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="text-center my-4">
+                        <i class="bi bi-film-slash" style="font-size: 4rem; color: #ccc;"></i>
+                    </div>
+                    <p class="text-center">${message}</p>
+                    ${similarTitlesHTML}
+                    <div class="text-center">
+                        <button class="btn btn-primary" id="newSearchBtn">
+                            <i class="bi bi-search me-2"></i>Try Another Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Update recommendations container
+        recommendationsContainer.innerHTML = noMatchHTML;
+        recommendationsContainer.style.display = 'block';
+    }
+    
+    // Function to show error message
+    function showError(message) {
+        console.error("Error:", message);
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+    }
+    
+    // Function to load visualizations with fixed IDs
+    function loadVisualization(imgId, placeholderId, url) {
+        const imgElement = document.getElementById(imgId);
+        const placeholder = document.getElementById(placeholderId);
+        
+        if (!imgElement || !placeholder) {
+            console.error(`Elements not found. Image: ${imgId}, Placeholder: ${placeholderId}`);
             return;
         }
         
-        // Create a new image element to preload the visualization
+        //console.log(`Loading visualization for ${imgId} from ${url}`);
+        
+        // Create a new image element to preload the image
         const img = new Image();
         
-        // When the image loads, swap it in and hide the placeholder
         img.onload = function() {
             imgElement.src = url;
             imgElement.style.display = 'block';
             placeholder.style.display = 'none';
+            console.log(`${imgId} loaded successfully`);
         };
         
-        // If the image fails to load, show an error message
-        img.onerror = function() {
-            placeholder.innerHTML = `<div class="alert alert-warning">Failed to load ${type.replace('_', ' ')}.</div>`;
+        img.onerror = function(error) {
+            console.error(`Error loading ${imgId}:`, error);
+            placeholder.innerHTML = `<div class="alert alert-warning">Failed to load visualization</div>`;
         };
         
         // Start loading the image
         img.src = url;
-    }
-
-    function showError(message) {
-        // Hide loading indicator
-        loadingIndicator.style.display = 'none';
-        
-        // Show error message
-        errorMessage.textContent = message;
-        errorMessage.style.display = 'block';
     }
 });
