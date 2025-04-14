@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
-    #image: postgres:15
-    image: postgres:15-alpine
+    image: postgres:15
+    #image: postgres:15-alpine
     container_name: movie-recommender-db
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -23,8 +21,8 @@ services:
 
   # Redis Cache
   redis:
-    #image: redis:7
-    image: redis:7-alpine
+    image: redis:7
+    #image: redis:7-alpine
     container_name: movie-recommender-cache
     ports:
       - "6379:6379"
