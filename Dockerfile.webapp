@@ -1,9 +1,11 @@
-FROM python:3.13-alpine
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies if needed
-RUN apk add --no-cache libffi-dev
+# Install minimal dependencies (no heavy computation in webapp)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY requirements-webapp.txt .

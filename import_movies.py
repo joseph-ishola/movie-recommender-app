@@ -9,13 +9,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
 from sklearn.decomposition import TruncatedSVD
 from scipy.sparse import hstack, csr_matrix
-import matplotlib
-matplotlib.use('Agg')  # Non-interactive backend
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
 from db_utils import Database
 import time
-import psycopg2.extras
 
 def preprocess_movie_data(csv_path):
     """Process the movie data CSV file and prepare it for database import"""
