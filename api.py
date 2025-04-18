@@ -23,6 +23,29 @@ app = Flask(__name__)
 app.config['CACHE_ENABLED'] = os.getenv('CACHE_ENABLED', 'true').lower() == 'true'
 app.config['DEBUG'] = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
 
+def get_secret(secret_name):
+    secret_file = f"/run/secrets/{secret_name}"
+    if os.path.exists(secret_file):
+        with open(secret_file, 'r') as f:
+            return f.read().strip()
+    return os.getenv(secret_name.upper().replace('-', '_'), '')
+
+API_KEY = get_secret('api_key')
+
+@app.before_request
+def verify_api_key():
+    # Skip verification for status endpoint
+    if request.endpoint == 'status':
+        return None
+        
+    # Skip verification for internal paths
+    if request.path.startswith('/api/'):
+        return None
+    
+    # Verify API key
+    if request.headers.get('X-API-Key') != API_KEY:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
 @app.route('/api/status', methods=['GET'])
 def status():
     """Check API status"""

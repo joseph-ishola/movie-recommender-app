@@ -7,6 +7,13 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+def get_secret(secret_name):
+    secret_file = f"/run/secrets/{secret_name}"
+    if os.path.exists(secret_file):
+        with open(secret_file, 'r') as f:
+            return f.read().strip()
+    return os.getenv(secret_name.upper().replace('-', '_'), '')
+
 class Database:
     """Database connection utility for the movie recommendation system"""
     
@@ -14,7 +21,7 @@ class Database:
         self.conn_params = {
             'dbname': os.getenv('DB_NAME', 'movie_recommender'),
             'user': os.getenv('DB_USER', 'postgres'),
-            'password': os.getenv('DB_PASSWORD', ''),
+            'password': get_secret('db_password'),
             'host': os.getenv('DB_HOST', 'localhost'),
             'port': os.getenv('DB_PORT', '5432')
         }
