@@ -343,18 +343,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
 
-            <div class="card shadow-sm fade-in">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-graph-up me-2"></i>
-                        <h3 class="card-title mb-0">Evaluation Metrics</h3>
-                    </div>
-                </div>
-                <div class="card-body">
-                    ${metricsHTML}
-                </div>
-            </div>
-
             <div class="row">
                 <div class="col-md-6 mb-4">
                     <div class="card shadow-sm fade-in">
@@ -393,6 +381,18 @@ document.addEventListener('DOMContentLoaded', function() {
                             <img id="wordcloud-image" class="img-fluid rounded" src="${wordcloudPath}" style="display: none;" alt="Word cloud">
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm fade-in">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-graph-up me-2"></i>
+                        <h3 class="card-title mb-0">Evaluation Metrics</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    ${metricsHTML}
                 </div>
             </div>
         `;
