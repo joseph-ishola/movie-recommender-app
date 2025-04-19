@@ -2,7 +2,9 @@
 
 ![Movie Recommender](https://img.shields.io/badge/Movie-Recommender-blue) ![Python](https://img.shields.io/badge/Python-3.10+-green) ![Flask](https://img.shields.io/badge/Flask-2.2.3-red) ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 
-A scalable, production-ready content-based movie recommendation system that uses machine learning techniques to provide personalized movie suggestions based on movie content features.
+A scalable, production-ready content-based movie recommendation app that uses machine learning techniques to provide personalized movie suggestions based on movie content features.
+
+Visit https://app.josephishola.com and search for your favorite films and discover new movies you might love.
 
 ## 📋 Table of Contents
 - [Overview](#overview)
